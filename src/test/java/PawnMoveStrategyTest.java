@@ -12,9 +12,9 @@ public class PawnMoveStrategyTest {
     public void whitePawnMovesForwardAndDouble() {
         PawnMoveStrategy s = new PawnMoveStrategy();
         String[][] board = emptyBoard(8);
-        board[6][0] = GameConstants.W_PAWN;
-        assertTrue(s.isValid(6,0,5,0,board));
-        assertTrue(s.isValid(6,0,4,0,board));
+        board[7][0] = GameConstants.W_PAWN;
+        assertTrue(s.isValid(7,0,6,0,board));
+        assertTrue(s.isValid(7,0,5,0,board));
     }
 
     @Test

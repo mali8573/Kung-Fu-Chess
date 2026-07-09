@@ -14,8 +14,8 @@ public class PawnMoveStrategy implements MoveStrategy {
         if (dc == 0 && dr == dir && board[tr][tc].equals(GameConstants.EMPTY)) return true;
         
         // First double step
-        boolean isStart = (GameConstants.isWhite(piece) && fr == board.length - 2) || 
-                          (!GameConstants.isWhite(piece) && fr == 1);
+        boolean isStart = (GameConstants.isWhite(piece) && fr == board.length - 1) ||
+                          (!GameConstants.isWhite(piece) && fr == 0);
         if (dc == 0 && isStart && dr == 2 * dir && board[tr][tc].equals(GameConstants.EMPTY) && 
             board[fr + dir][fc].equals(GameConstants.EMPTY)) return true;
         

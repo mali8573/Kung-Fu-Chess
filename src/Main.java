@@ -14,7 +14,13 @@ public class Main {
         }
         
         GameEngine engine = new GameEngine();
-        engine.board = rows.toArray(new String[0][0]);
+        try {
+            engine.board = BoardParser.fromRows(rows);
+        } catch (BoardParser.BoardFormatException e) {
+            System.out.println("ERROR " + e.getMessage());
+            return;
+        }
+        RealTimeArbiter arbiter = new RealTimeArbiter(engine);
 
         while (sc.hasNext()) {
             String cmd = sc.next();
@@ -32,29 +38,33 @@ public class Main {
                     boolean isFriendly = (!engine.board[r][c].equals(GameConstants.EMPTY) && 
                                         GameConstants.isWhite(engine.board[r][c]) == GameConstants.isWhite(engine.board[engine.sR][engine.sCol]));
 
-                    if (!isSameSpot && !isFriendly) {
-                        if (PieceFactory.isMoveLegal(engine.sR, engine.sCol, r, c, engine.board) && 
-                            !PieceFactory.isPathBlocked(engine.sR, engine.sCol, r, c, engine.board)) {
-                            engine.activeMoves.add(new MovingPiece(engine.board[engine.sR][engine.sCol], engine.sR, engine.sCol, r, c, engine.currentTime + 1000));
+                    if (isSameSpot) {
+                        engine.sR = -1; engine.sCol = -1;
+                    } else if (isFriendly) {
+                        // Clicking another friendly piece switches the selection to it.
+                        engine.sR = r; engine.sCol = c;
+                    } else {
+                        RuleEngine.MoveResult res = RuleEngine.checkMove(engine.sR, engine.sCol, r, c, engine.board);
+                        if (res == RuleEngine.MoveResult.OK && !engine.hasOpposingRouteConflict(engine.sR, engine.sCol, r, c)) {
+                            long distance = Math.max(Math.abs(r - engine.sR), Math.abs(c - engine.sCol));
+                            engine.addMove(new MovingPiece(engine.board[engine.sR][engine.sCol], engine.sR, engine.sCol, r, c, engine.currentTime + distance * 1000L));
                         }
+                        engine.sR = -1; engine.sCol = -1;
                     }
-                    engine.sR = -1; engine.sCol = -1;
                 }
             } else if (cmd.equals("jump")) {
                 int c = sc.nextInt() / 100;
                 int r = sc.nextInt() / 100;
                 if (!engine.gameOver && r >= 0 && r < engine.board.length && c >= 0 && c < engine.board[0].length && !engine.board[r][c].equals(GameConstants.EMPTY)) {
-                    engine.activeMoves.add(new MovingPiece(engine.board[r][c], r, c, r, c, engine.currentTime + 1000));
+                    engine.addMove(new MovingPiece(engine.board[r][c], r, c, r, c, engine.currentTime + 1000));
                 }
             } else if (cmd.equals("wait")) {
-                engine.currentTime += sc.nextLong();
-                engine.processMoves();
+                long dt = sc.nextLong();
+                arbiter.advanceTime(dt);
             } else if (cmd.equals("print")) {
                 sc.next();
                 engine.processMoves();
-                for (String[] row : engine.board) {
-                    System.out.println(String.join(" ", row));
-                }
+                BoardPrinter.print(engine.board);
             }
         }
     }

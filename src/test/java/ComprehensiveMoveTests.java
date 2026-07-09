@@ -16,20 +16,20 @@ public class ComprehensiveMoveTests {
     public void whitePawnMovesForwardAndDoubleStep() {
         PawnMoveStrategy strategy = new PawnMoveStrategy();
         String[][] board = emptyBoard(8);
-        board[6][0] = GameConstants.W_PAWN;
+        board[7][0] = GameConstants.W_PAWN;
 
-        assertTrue(strategy.isValid(6, 0, 5, 0, board));
-        assertTrue(strategy.isValid(6, 0, 4, 0, board));
+        assertTrue(strategy.isValid(7, 0, 6, 0, board));
+        assertTrue(strategy.isValid(7, 0, 5, 0, board));
     }
 
     @Test
     public void blackPawnMovesForwardAndDoubleStep() {
         PawnMoveStrategy strategy = new PawnMoveStrategy();
         String[][] board = emptyBoard(8);
-        board[1][0] = GameConstants.B_PAWN;
+        board[0][0] = GameConstants.B_PAWN;
 
-        assertTrue(strategy.isValid(1, 0, 2, 0, board));
-        assertTrue(strategy.isValid(1, 0, 3, 0, board));
+        assertTrue(strategy.isValid(0, 0, 1, 0, board));
+        assertTrue(strategy.isValid(0, 0, 2, 0, board));
     }
 
     @Test
@@ -198,7 +198,7 @@ public class ComprehensiveMoveTests {
         GameEngine engine = new GameEngine();
         engine.board = emptyBoard(8);
         engine.board[6][0] = GameConstants.W_PAWN;
-        engine.activeMoves.add(new MovingPiece(GameConstants.W_PAWN, 6, 0, 5, 0, 1L));
+        engine.addMove(new MovingPiece(GameConstants.W_PAWN, 6, 0, 5, 0, 1L));
         engine.currentTime = 1;
 
         engine.processMoves();
@@ -213,7 +213,7 @@ public class ComprehensiveMoveTests {
         GameEngine engine = new GameEngine();
         engine.board = emptyBoard(8);
         engine.board[6][0] = GameConstants.W_PAWN;
-        engine.activeMoves.add(new MovingPiece(GameConstants.W_PAWN, 6, 0, 5, 0, 5L));
+        engine.addMove(new MovingPiece(GameConstants.W_PAWN, 6, 0, 5, 0, 5L));
         engine.currentTime = 1;
 
         engine.processMoves();
@@ -228,14 +228,15 @@ public class ComprehensiveMoveTests {
         GameEngine engine = new GameEngine();
         engine.board = emptyBoard(8);
         engine.board[4][4] = GameConstants.B_ROOK;
-        engine.activeMoves.add(new MovingPiece(GameConstants.B_ROOK, 4, 4, 4, 4, 0L));
-        engine.activeMoves.add(new MovingPiece(GameConstants.W_ROOK, 6, 4, 4, 4, 1L));
+        engine.board[6][4] = GameConstants.W_ROOK;
+        engine.addMove(new MovingPiece(GameConstants.B_ROOK, 4, 4, 4, 4, 0L));
+        engine.addMove(new MovingPiece(GameConstants.W_ROOK, 6, 4, 4, 4, 1L));
         engine.currentTime = 1;
 
         engine.processMoves();
 
         assertEquals(GameConstants.EMPTY, engine.board[6][4]);
-        assertEquals(GameConstants.B_ROOK, engine.board[4][4]);
+        assertEquals(GameConstants.W_ROOK, engine.board[4][4]);
         assertTrue(engine.activeMoves.isEmpty());
     }
 
