@@ -1,26 +1,32 @@
 public class PawnMoveStrategy implements MoveStrategy {
     @Override
     public boolean isValid(int fr, int fc, int tr, int tc, String[][] board) {
-        if (!BoardUtils.isInBounds(fr, fc, board) || !BoardUtils.isInBounds(tr, tc, board)) {
+        Board b = new Board(board);
+        Position from = new Position(fr, fc);
+        Position to = new Position(tr, tc);
+
+        if (!b.isInBounds(from) || !b.isInBounds(to)) {
             return false;
         }
 
-        String piece = board[fr][fc];
-        int dir = GameConstants.isWhite(piece) ? -1 : 1;
-        int dr = tr - fr;
-        int dc = Math.abs(tc - fc);
-        
+        Piece piece = b.pieceAt(from);
+        if (piece == null) return false; // no piece to move
+
+        int dir = piece.isWhite() ? -1 : 1;
+        int dr = to.row - from.row;
+        int dc = Math.abs(to.col - from.col);
+        Piece atTarget = b.pieceAt(to);
+
         // Regular move
-        if (dc == 0 && dr == dir && board[tr][tc].equals(GameConstants.EMPTY)) return true;
-        
+        if (dc == 0 && dr == dir && atTarget == null) return true;
+
         // First double step
-        boolean isStart = (GameConstants.isWhite(piece) && fr == board.length - 1) ||
-                          (!GameConstants.isWhite(piece) && fr == 0);
-        if (dc == 0 && isStart && dr == 2 * dir && board[tr][tc].equals(GameConstants.EMPTY) && 
-            board[fr + dir][fc].equals(GameConstants.EMPTY)) return true;
-        
+        boolean isStart = (piece.isWhite() && from.row == b.getHeight() - 1) ||
+                          (!piece.isWhite() && from.row == 0);
+        Piece atStepThrough = b.pieceAt(new Position(from.row + dir, from.col));
+        if (dc == 0 && isStart && dr == 2 * dir && atTarget == null && atStepThrough == null) return true;
+
         // Diagonal capture
-        return dc == 1 && dr == dir && !board[tr][tc].equals(GameConstants.EMPTY) && 
-               GameConstants.isWhite(piece) != GameConstants.isWhite(board[tr][tc]);
+        return dc == 1 && dr == dir && atTarget != null && piece.isWhite() != atTarget.isWhite();
     }
 }

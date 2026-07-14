@@ -61,8 +61,11 @@ public class EdgeCaseTests {
         g.currentTime = 20;
         g.processMoves();
 
-        // The last added mover will be the final occupant under current engine behavior
-        assertEquals(GameConstants.W_BISHOP, g.board[4][4]);
+        // W_ROOK and W_BISHOP are the same color and would arrive at (4,4) at the exact same
+        // time, so the later-added one (the bishop) gets stuck instead of colliding with its
+        // own side. That leaves the rook and the enemy rook to fight over the square, and
+        // since B_ROOK was added after W_ROOK it is the one that ends up capturing it there.
+        assertEquals(GameConstants.B_ROOK, g.board[4][4]);
     }
 
     @Test

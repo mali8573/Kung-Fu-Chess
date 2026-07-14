@@ -15,29 +15,38 @@ public class PieceFactory {
     }
 
     public static boolean isMoveLegal(int fr, int fc, int tr, int tc, String[][] board) {
-        if (!BoardUtils.isInBounds(fr, fc, board) || !BoardUtils.isInBounds(tr, tc, board)) {
+        Board b = new Board(board);
+        Position from = new Position(fr, fc);
+        Position to = new Position(tr, tc);
+
+        if (!b.isInBounds(from) || !b.isInBounds(to)) {
             return false;
         }
 
-        String piece = board[fr][fc];
-        String type = piece.substring(1); // Example: "K"
-        
-        MoveStrategy strategy = strategies.get(type);
+        Piece piece = b.pieceAt(from);
+        if (piece == null) return false;
+
+        MoveStrategy strategy = strategies.get(String.valueOf(piece.kindLetter()));
         return (strategy != null) && strategy.isValid(fr, fc, tr, tc, board);
     }
+
     public static boolean isPathBlocked(int fr, int fc, int tr, int tc, String[][] board) {
-    String type = board[fr][fc].substring(1);
-    // Pieces that jump over others (like knights) or do not move far (like king/pawn) have no blocking
-    if (type.equals("N") || type.equals("K") || type.equals("P")) return false;
-    
-    int dr = Integer.compare(tr, fr);
-    int dc = Integer.compare(tc, fc);
-    int r = fr + dr, c = fc + dc;
-    
-    while (r != tr || c != tc) {
-        if (!board[r][c].equals(GameConstants.EMPTY)) return true;
-        r += dr; c += dc;
+        Board b = new Board(board);
+        Piece piece = b.pieceAt(new Position(fr, fc));
+        if (piece == null) return false;
+
+        // Pieces that jump over others (like knights) or do not move far (like king/pawn) have no blocking
+        char kind = piece.kindLetter();
+        if (kind == 'N' || kind == 'K' || kind == 'P') return false;
+
+        int dr = Integer.compare(tr, fr);
+        int dc = Integer.compare(tc, fc);
+        int r = fr + dr, c = fc + dc;
+
+        while (r != tr || c != tc) {
+            if (b.pieceAt(new Position(r, c)) != null) return true;
+            r += dr; c += dc;
+        }
+        return false;
     }
-    return false;
-}
 }

@@ -4,15 +4,15 @@ public class Main {
     public static void main(String[] args) {
         Scanner sc = new Scanner(System.in);
         if (!sc.hasNextLine()) return;
-        sc.nextLine(); 
+        sc.nextLine();
         List<String[]> rows = new ArrayList<>();
-        
+
         while (sc.hasNextLine()) {
             String line = sc.nextLine();
             if (line.equals("Commands:")) break;
             rows.add(line.trim().split("\\s+"));
         }
-        
+
         GameEngine engine = new GameEngine();
         try {
             engine.board = BoardParser.fromRows(rows);
@@ -20,47 +20,30 @@ public class Main {
             System.out.println("ERROR " + e.getMessage());
             return;
         }
-        RealTimeArbiter arbiter = new RealTimeArbiter(engine);
+
+        // Fixed CELL_SIZE=100 mapping, matching the text-DSL pixel convention exactly
+        // (col = x / 100, row = y / 100, no letterboxing) - the GUI uses a separate,
+        // dynamically-resizing BoardGeometry instead.
+        BoardGeometry geometry = new BoardGeometry(engine.board.length, engine.board[0].length);
+        geometry.resize(engine.board[0].length * 100, engine.board.length * 100);
+        GameController controller = new GameController(engine, geometry);
 
         while (sc.hasNext()) {
             String cmd = sc.next();
             if (cmd.equals("click")) {
-                int c = sc.nextInt() / 100;
-                int r = sc.nextInt() / 100;
-                if (engine.gameOver || r < 0 || r >= engine.board.length || c < 0 || c >= engine.board[0].length) continue;
-                
-                if (engine.sR == -1) {
-                    if (!engine.board[r][c].equals(GameConstants.EMPTY)) {
-                        engine.sR = r; engine.sCol = c;
-                    }
-                } else {
-                    boolean isSameSpot = (r == engine.sR && c == engine.sCol);
-                    boolean isFriendly = (!engine.board[r][c].equals(GameConstants.EMPTY) && 
-                                        GameConstants.isWhite(engine.board[r][c]) == GameConstants.isWhite(engine.board[engine.sR][engine.sCol]));
-
-                    if (isSameSpot) {
-                        engine.sR = -1; engine.sCol = -1;
-                    } else if (isFriendly) {
-                        // Clicking another friendly piece switches the selection to it.
-                        engine.sR = r; engine.sCol = c;
-                    } else {
-                        RuleEngine.MoveResult res = RuleEngine.checkMove(engine.sR, engine.sCol, r, c, engine.board);
-                        if (res == RuleEngine.MoveResult.OK && !engine.hasOpposingRouteConflict(engine.sR, engine.sCol, r, c)) {
-                            long distance = Math.max(Math.abs(r - engine.sR), Math.abs(c - engine.sCol));
-                            engine.addMove(new MovingPiece(engine.board[engine.sR][engine.sCol], engine.sR, engine.sCol, r, c, engine.currentTime + distance * 1000L));
-                        }
-                        engine.sR = -1; engine.sCol = -1;
-                    }
-                }
+                int x = sc.nextInt();
+                int y = sc.nextInt();
+                controller.click(x, y);
             } else if (cmd.equals("jump")) {
                 int c = sc.nextInt() / 100;
                 int r = sc.nextInt() / 100;
-                if (!engine.gameOver && r >= 0 && r < engine.board.length && c >= 0 && c < engine.board[0].length && !engine.board[r][c].equals(GameConstants.EMPTY)) {
+                if (!engine.gameOver && r >= 0 && r < engine.board.length && c >= 0 && c < engine.board[0].length
+                        && !engine.board[r][c].equals(GameConstants.EMPTY) && !engine.isPieceInFlight(r, c)) {
                     engine.addMove(new MovingPiece(engine.board[r][c], r, c, r, c, engine.currentTime + 1000));
                 }
             } else if (cmd.equals("wait")) {
                 long dt = sc.nextLong();
-                arbiter.advanceTime(dt);
+                engine.advanceTime(dt);
             } else if (cmd.equals("print")) {
                 sc.next();
                 engine.processMoves();
