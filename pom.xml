@@ -32,15 +32,23 @@
   </dependencies>
 
   <build>
+    <!-- Main sources live directly under src/ (not the Maven-standard src/main/java/),
+         so the default sourceDirectory must be overridden or the compiler plugin silently
+         compiles nothing. src/test/java is excluded from this so it isn't compiled twice
+         (once here without JUnit on the classpath, and again by testCompile). -->
+    <sourceDirectory>src</sourceDirectory>
     <plugins>
       <plugin>
-        <groupId>maven-compiler-plugin</groupId>
+        <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-compiler-plugin</artifactId>
         <version>3.11.0</version>
         <configuration>
           <encoding>UTF-8</encoding>
           <source>8</source>
           <target>8</target>
+          <excludes>
+            <exclude>test/**</exclude>
+          </excludes>
         </configuration>
       </plugin>
 
