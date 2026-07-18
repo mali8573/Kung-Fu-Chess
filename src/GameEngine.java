@@ -18,7 +18,34 @@ public class GameEngine {
         return new Board(board);
     }
 
-    /** Post-landing rest state per cell ("row_col"), read by snapshot() and self-cleaned once expired. */
+    /** Starts a brand new game on freshBoard, clearing all in-flight moves, cooldowns, the
+     *  moves log, and both scores. Lets the same GameEngine/GameController/Timer instances
+     *  keep running instead of tearing down and rebuilding the whole GUI for "play again". */
+    public synchronized void reset(String[][] freshBoard) {
+        board = freshBoard;
+        currentTime = 0;
+        gameOver = false;
+        winner = null;
+        activeMoves.clear();
+        restStates.clear();
+        moveLog.clear();
+        whiteScore = 0;
+        blackScore = 0;
+    }
+
+    /** Cooldown after landing from a normal move: 1 second per square actually traveled
+     *  (e.g. a rook that moved 6 squares rests for 6 seconds). */
+    private static long moveRestMs(int fromRow, int fromCol, int toRow, int toCol) {
+        long distance = Math.max(Math.abs(toRow - fromRow), Math.abs(toCol - fromCol));
+        return distance * 1000L;
+    }
+
+    /** Cooldown after completing a jump, before the piece can move or jump again. */
+    private static final long JUMP_REST_MS = 500L;
+
+    /** Post-landing rest state per cell ("row_col"), read by snapshot() and self-cleaned once expired.
+     *  The same durationMs also gates new commands via isPieceResting - the rest pose lasts exactly
+     *  as long as the piece is actually unable to act. */
     private static final class RestInfo {
         final PieceVisualState state;
         final long startTime;
@@ -33,14 +60,58 @@ public class GameEngine {
 
     private final Map<String, RestInfo> restStates = new HashMap<>();
 
-    /** Rest duration = one full loop of that state's animation (frameCount / framesPerSec). Not specified
-     *  by the asset config directly (rest states loop forever); this is our own reasonable interpretation. */
-    private void startRest(String pieceCode, int row, int col, PieceVisualState restState) {
+    /** Every completed (non-jump) move, in order - for the on-screen moves log only. */
+    private final List<MoveLogEntry> moveLog = new ArrayList<>();
+
+    /** Score = total point-value of enemy pieces a side has captured (classic chess values). */
+    public int whiteScore = 0;
+    public int blackScore = 0;
+
+    private static int pieceValue(char kindLetter) {
+        switch (kindLetter) {
+            case 'P': return 1;
+            case 'N': return 3;
+            case 'B': return 3;
+            case 'R': return 5;
+            case 'Q': return 9;
+            default: return 0; // king - capturing it ends the game, not a scored trade
+        }
+    }
+
+    private String squareName(int row, int col) {
+        char file = (char) ('a' + col);
+        int rank = board.length - row;
+        return "" + file + rank;
+    }
+
+    /** Simplified algebraic notation: no check/disambiguation, since this engine tracks neither. */
+    private String notationFor(MovingPiece mp, boolean wasCapture, String landedPiece) {
+        char kind = mp.piece.charAt(1);
+        String dest = squareName(mp.toRow, mp.toCol);
+        StringBuilder sb = new StringBuilder();
+
+        if (kind == 'P') {
+            if (wasCapture) sb.append((char) ('a' + mp.fromCol)).append('x');
+            sb.append(dest);
+            if (!landedPiece.equals(mp.piece)) sb.append("=Q"); // this engine only ever promotes to queen
+        } else {
+            sb.append(kind);
+            if (wasCapture) sb.append('x');
+            sb.append(dest);
+        }
+        return sb.toString();
+    }
+
+    private void startRest(String pieceCode, int row, int col, PieceVisualState restState, long durationMs) {
         if (pieceCode.equals(GameConstants.EMPTY) || pieceCode.length() < 2) return; // not a real piece
-        PieceStateConfig config = PieceStateConfig.readFrom(PieceAssetPaths.configPath(pieceCode, restState));
-        int frameCount = PieceAssetPaths.frameCount(pieceCode, restState);
-        long durationMs = Math.round(frameCount / (double) config.framesPerSec * 1000);
         restStates.put(row + "_" + col, new RestInfo(restState, currentTime, durationMs));
+    }
+
+    /** True if the piece at (row,col) is still on its post-landing/post-jump cooldown. */
+    public synchronized boolean isPieceResting(int row, int col) {
+        RestInfo rest = restStates.get(row + "_" + col);
+        if (rest == null) return false;
+        return currentTime - rest.startTime < rest.durationMs;
     }
 
     public synchronized void addMove(MovingPiece mp) {
@@ -68,6 +139,7 @@ public class GameEngine {
         switch (result) {
             case SRC_EMPTY: return "empty_source";
             case SRC_BUSY: return "motion_in_progress";
+            case SRC_RESTING: return "resting";
             case TARGET_FRIENDLY: return "friendly_destination";
             case CANNOT_REACH: return "illegal_piece_move";
             default: return "ok";
@@ -97,6 +169,25 @@ public class GameEngine {
     }
 
     /**
+     * Public command boundary for a jump attempt (in-place, e.g. a right-click action).
+     * Rejects game_over and an empty source up front, and - like requestMove - rejects a
+     * piece that is already mid-move via isPieceInFlight, since a piece can never be given
+     * a new command while it is still executing an earlier one.
+     */
+    public synchronized RequestResult requestJump(int row, int col) {
+        if (gameOver) return new RequestResult(false, "game_over");
+
+        Position pos = new Position(row, col);
+        Piece piece = asBoard().pieceAt(pos);
+        if (piece == null) return new RequestResult(false, "empty_source");
+        if (isPieceInFlight(row, col)) return new RequestResult(false, "motion_in_progress");
+        if (isPieceResting(row, col)) return new RequestResult(false, "resting");
+
+        addMove(new MovingPiece(piece.code, row, col, row, col, currentTime + 1000));
+        return new RequestResult(true, "ok");
+    }
+
+    /**
      * Read-only snapshot for the renderer. Board-relative coordinates only (no pixels - that's
      * the View's job). Selection is passed in because GameEngine doesn't own selection state;
      * the Controller does.
@@ -118,7 +209,8 @@ public class GameEngine {
             if (rest != null) {
                 long elapsed = currentTime - rest.startTime;
                 if (elapsed < rest.durationMs) {
-                    pieces.add(new PieceSnapshot(key, piece.code, r, c, rest.state, elapsed));
+                    double remaining = 1.0 - elapsed / (double) rest.durationMs;
+                    pieces.add(new PieceSnapshot(key, piece.code, r, c, rest.state, elapsed, remaining));
                     continue;
                 }
                 restStates.remove(key); // rest expired - fall through to idle, and stop tracking it
@@ -126,7 +218,7 @@ public class GameEngine {
 
             // currentTime as a phase input is fine for a state that just loops forever (idle
             // never "starts" from the renderer's point of view - it's ambient).
-            pieces.add(new PieceSnapshot(key, piece.code, r, c, PieceVisualState.IDLE, currentTime));
+            pieces.add(new PieceSnapshot(key, piece.code, r, c, PieceVisualState.IDLE, currentTime, 0.0));
         }
 
         for (MovingPiece mp : activeMoves) {
@@ -150,10 +242,29 @@ public class GameEngine {
 
             double row = mp.fromRow + (mp.toRow - mp.fromRow) * progress;
             double col = mp.fromCol + (mp.toCol - mp.fromCol) * progress;
-            pieces.add(new PieceSnapshot(mp.fromRow + "_" + mp.fromCol, mp.piece, row, col, state, elapsed));
+            pieces.add(new PieceSnapshot(mp.fromRow + "_" + mp.fromCol, mp.piece, row, col, state, elapsed, 0.0));
         }
 
-        return new GameSnapshot(board.length, board[0].length, pieces, selectedRow, selectedCol, gameOver, winner);
+        List<Position> legalMoves = (selectedRow == -1)
+                ? Collections.emptyList()
+                : legalDestinations(selectedRow, selectedCol);
+
+        return new GameSnapshot(board.length, board[0].length, pieces, selectedRow, selectedCol, gameOver, winner,
+                legalMoves, new ArrayList<>(moveLog), whiteScore, blackScore);
+    }
+
+    /** Every square the piece at (row,col) could legally move to right now (per RuleEngine). */
+    public synchronized List<Position> legalDestinations(int row, int col) {
+        List<Position> destinations = new ArrayList<>();
+        for (int r = 0; r < board.length; r++) {
+            for (int c = 0; c < board[0].length; c++) {
+                if (r == row && c == col) continue;
+                if (RuleEngine.checkMove(row, col, r, c, board) == RuleEngine.MoveResult.OK) {
+                    destinations.add(new Position(r, c));
+                }
+            }
+        }
+        return destinations;
     }
 
     /** True if the piece at (row,col) already has a pending move that hasn't been resolved yet. */
@@ -318,6 +429,15 @@ public class GameEngine {
             }
 
             boolean isJump = (mp.fromRow == mp.toRow && mp.fromCol == mp.toCol);
+
+            if (isJump) {
+                // A jump never leaves its square, so there is no "destination" to check against -
+                // it always completes in place and starts its (longer) rest cooldown.
+                startRest(atSource.code, mp.toRow, mp.toCol, PieceVisualState.SHORT_REST, JUMP_REST_MS);
+                processed.add(mp);
+                continue;
+            }
+
             Piece defender = b.pieceAt(to);
 
             if (defender != null) {
@@ -326,7 +446,7 @@ public class GameEngine {
                     // Friendly piece on destination: cancel this move (leave board as-is)
                     processed.add(mp);
                     continue;
-                } else if (!isJump && isDefenderAirborne(mp.toRow, mp.toCol, mp.arrivalTime)) {
+                } else if (isDefenderAirborne(mp.toRow, mp.toCol, mp.arrivalTime)) {
                     // Target is mid-jump (airborne): the attacker is destroyed instead of capturing.
                     b.removePiece(from);
                     processed.add(mp);
@@ -337,17 +457,26 @@ public class GameEngine {
                         gameOver = true;
                         winner = atSource.isWhite() ? "white" : "black";
                     }
+                    if (atSource.isWhite()) {
+                        whiteScore += pieceValue(defender.kindLetter());
+                    } else {
+                        blackScore += pieceValue(defender.kindLetter());
+                    }
                     String landedPiece = promote(mp.piece, mp.toRow);
                     b.removePiece(from);
                     b.placePieceCode(to, landedPiece);
-                    startRest(landedPiece, mp.toRow, mp.toCol, isJump ? PieceVisualState.SHORT_REST : PieceVisualState.LONG_REST);
+                    startRest(landedPiece, mp.toRow, mp.toCol, PieceVisualState.LONG_REST,
+                        moveRestMs(mp.fromRow, mp.fromCol, mp.toRow, mp.toCol));
+                    moveLog.add(new MoveLogEntry(atSource.isWhite(), notationFor(mp, true, landedPiece), currentTime));
                 }
             } else {
                 // Normal landing
                 String landedPiece = promote(mp.piece, mp.toRow);
                 b.removePiece(from);
                 b.placePieceCode(to, landedPiece);
-                startRest(landedPiece, mp.toRow, mp.toCol, isJump ? PieceVisualState.SHORT_REST : PieceVisualState.LONG_REST);
+                startRest(landedPiece, mp.toRow, mp.toCol, PieceVisualState.LONG_REST,
+                        moveRestMs(mp.fromRow, mp.fromCol, mp.toRow, mp.toCol));
+                moveLog.add(new MoveLogEntry(atSource.isWhite(), notationFor(mp, false, landedPiece), currentTime));
             }
 
             processed.add(mp);

@@ -1,5 +1,5 @@
 public class RuleEngine {
-    public enum MoveResult { OK, SRC_EMPTY, SRC_BUSY, TARGET_FRIENDLY, CANNOT_REACH }
+    public enum MoveResult { OK, SRC_EMPTY, SRC_BUSY, SRC_RESTING, TARGET_FRIENDLY, CANNOT_REACH }
 
     public static MoveResult checkMove(int fr, int fc, int tr, int tc, String[][] board) {
         Board b = new Board(board);
@@ -24,9 +24,13 @@ public class RuleEngine {
         return MoveResult.OK;
     }
 
-    /** Same as checkMove, but first rejects commanding a piece that is already mid-move. */
+    /**
+     * Same as checkMove, but first rejects commanding a piece that is already mid-move,
+     * or that is still on its post-landing/post-jump rest cooldown.
+     */
     public static MoveResult checkMove(int fr, int fc, int tr, int tc, String[][] board, GameEngine engine) {
         if (engine.isPieceInFlight(fr, fc)) return MoveResult.SRC_BUSY;
+        if (engine.isPieceResting(fr, fc)) return MoveResult.SRC_RESTING;
         return checkMove(fr, fc, tr, tc, board);
     }
 }

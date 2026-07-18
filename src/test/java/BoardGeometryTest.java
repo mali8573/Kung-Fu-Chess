@@ -53,4 +53,24 @@ public class BoardGeometryTest {
         int y = geo.cellTopLeftY(5);
         assertArrayEquals(new int[]{5, 3}, geo.pixelToCell(x + 1, y + 1));
     }
+
+    @Test
+    public void marginShrinksTheCheckeredAreaAndOffsetsItsOrigin() {
+        BoardGeometry geo = new BoardGeometry(8, 8, 20);
+        geo.resize(800, 800);
+
+        assertEquals(760, geo.getBoardSize()); // 800 - 2*20
+        assertEquals(20, geo.getOriginX());
+        assertEquals(20, geo.getOriginY());
+        assertEquals(20, geo.getMarginPx());
+    }
+
+    @Test
+    public void marginedGeometryStillExcludesClicksInTheMarginBand() {
+        BoardGeometry geo = new BoardGeometry(8, 8, 20);
+        geo.resize(800, 800);
+
+        assertNull(geo.pixelToCell(10, 400)); // inside the left margin band
+        assertArrayEquals(new int[]{4, 0}, geo.pixelToCell(21, 400)); // just past the margin
+    }
 }

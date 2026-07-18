@@ -20,6 +20,12 @@ public class GameController {
     public int getSelectedCol() { return selectedCol; }
     public boolean hasSelection() { return selectedRow != -1; }
 
+    /** Drops any pending selection - used when starting a new game. */
+    public synchronized void clearSelection() {
+        selectedRow = -1;
+        selectedCol = -1;
+    }
+
     /**
      * Handles a click at raw pixel coordinates. Returns the move outcome when this click
      * triggered a requestMove, or null otherwise (selection, ignored click, or cancel) -
@@ -41,7 +47,9 @@ public class GameController {
         int row = cell[0], col = cell[1];
 
         if (!hasSelection()) {
-            if (!engine.board[row][col].equals(GameConstants.EMPTY)) {
+            boolean occupied = !engine.board[row][col].equals(GameConstants.EMPTY);
+            boolean unavailable = engine.isPieceInFlight(row, col) || engine.isPieceResting(row, col);
+            if (occupied && !unavailable) {
                 selectedRow = row;
                 selectedCol = col;
             }
@@ -52,6 +60,18 @@ public class GameController {
         selectedRow = -1;
         selectedCol = -1;
         return result;
+    }
+
+    /**
+     * Handles a right-click (jump) at raw pixel coordinates. Independent of the current
+     * left-click selection - it acts directly on whatever piece is under the cursor.
+     * Returns null if the click landed outside the board.
+     */
+    public synchronized GameEngine.RequestResult jump(int pixelX, int pixelY) {
+        int[] cell = geometry.pixelToCell(pixelX, pixelY);
+        if (cell == null) return null;
+
+        return engine.requestJump(cell[0], cell[1]);
     }
 
     public GameSnapshot snapshot() {

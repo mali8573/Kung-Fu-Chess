@@ -16,20 +16,20 @@ public class ComprehensiveMoveTests {
     public void whitePawnMovesForwardAndDoubleStep() {
         PawnMoveStrategy strategy = new PawnMoveStrategy();
         String[][] board = emptyBoard(8);
-        board[7][0] = GameConstants.W_PAWN;
+        board[6][0] = GameConstants.W_PAWN;
 
-        assertTrue(strategy.isValid(7, 0, 6, 0, board));
-        assertTrue(strategy.isValid(7, 0, 5, 0, board));
+        assertTrue(strategy.isValid(6, 0, 5, 0, board));
+        assertTrue(strategy.isValid(6, 0, 4, 0, board));
     }
 
     @Test
     public void blackPawnMovesForwardAndDoubleStep() {
         PawnMoveStrategy strategy = new PawnMoveStrategy();
         String[][] board = emptyBoard(8);
-        board[0][0] = GameConstants.B_PAWN;
+        board[1][0] = GameConstants.B_PAWN;
 
-        assertTrue(strategy.isValid(0, 0, 1, 0, board));
-        assertTrue(strategy.isValid(0, 0, 2, 0, board));
+        assertTrue(strategy.isValid(1, 0, 2, 0, board));
+        assertTrue(strategy.isValid(1, 0, 3, 0, board));
     }
 
     @Test

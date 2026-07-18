@@ -20,9 +20,10 @@ public class PawnMoveStrategy implements MoveStrategy {
         // Regular move
         if (dc == 0 && dr == dir && atTarget == null) return true;
 
-        // First double step
-        boolean isStart = (piece.isWhite() && from.row == b.getHeight() - 1) ||
-                          (!piece.isWhite() && from.row == 0);
+        // First double step - white pawns start on row (height-2), black pawns on row 1;
+        // the back rank itself (height-1 / 0) is where the other pieces start, not pawns.
+        boolean isStart = (piece.isWhite() && from.row == b.getHeight() - 2) ||
+                          (!piece.isWhite() && from.row == 1);
         Piece atStepThrough = b.pieceAt(new Position(from.row + dir, from.col));
         if (dc == 0 && isStart && dr == 2 * dir && atTarget == null && atStepThrough == null) return true;
 

@@ -7,6 +7,7 @@ public class BoardGeometry {
 
     private final int rows;
     private final int cols;
+    private final int marginPx;
 
     private int originX;
     private int originY;
@@ -14,13 +15,22 @@ public class BoardGeometry {
     private double cellSize;
 
     public BoardGeometry(int rows, int cols) {
+        this(rows, cols, 0);
+    }
+
+    /** marginPx reserves space around the checkered squares (e.g. for file/rank labels) -
+     *  it is carved out of whatever square fits the panel, so the checkered area shrinks
+     *  slightly instead of overflowing. Existing callers that pass 0 see no change at all. */
+    public BoardGeometry(int rows, int cols, int marginPx) {
         this.rows = rows;
         this.cols = cols;
+        this.marginPx = marginPx;
     }
 
     /** Recomputes layout for the current panel size. Call on every resize. */
     public void resize(int panelWidth, int panelHeight) {
-        boardSize = Math.max(0, Math.min(panelWidth, panelHeight));
+        int outerSize = Math.max(0, Math.min(panelWidth, panelHeight));
+        boardSize = Math.max(0, outerSize - 2 * marginPx);
         originX = (panelWidth - boardSize) / 2;
         originY = (panelHeight - boardSize) / 2;
         cellSize = boardSize / (double) Math.max(rows, cols);
@@ -32,6 +42,7 @@ public class BoardGeometry {
     public int getOriginX() { return originX; }
     public int getOriginY() { return originY; }
     public double getCellSize() { return cellSize; }
+    public int getMarginPx() { return marginPx; }
 
     /** Returns {row, col} for a pixel, or null if the pixel is outside the board. */
     public int[] pixelToCell(int px, int py) {

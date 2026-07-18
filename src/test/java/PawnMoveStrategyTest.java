@@ -12,9 +12,9 @@ public class PawnMoveStrategyTest {
     public void whitePawnMovesForwardAndDouble() {
         PawnMoveStrategy s = new PawnMoveStrategy();
         String[][] board = emptyBoard(8);
-        board[7][0] = GameConstants.W_PAWN;
-        assertTrue(s.isValid(7,0,6,0,board));
-        assertTrue(s.isValid(7,0,5,0,board));
+        board[6][0] = GameConstants.W_PAWN;
+        assertTrue(s.isValid(6,0,5,0,board));
+        assertTrue(s.isValid(6,0,4,0,board));
     }
 
     @Test
@@ -24,6 +24,14 @@ public class PawnMoveStrategyTest {
         board[6][0] = GameConstants.W_PAWN;
         board[5][1] = GameConstants.B_PAWN;
         assertTrue(s.isValid(6,0,5,1,board));
+    }
+
+    @Test
+    public void pawnCannotDoubleStepAfterLeavingItsStartingRow() {
+        PawnMoveStrategy s = new PawnMoveStrategy();
+        String[][] board = emptyBoard(8);
+        board[5][0] = GameConstants.W_PAWN; // already moved once, off row 6
+        assertFalse(s.isValid(5, 0, 3, 0, board));
     }
 
     @Test

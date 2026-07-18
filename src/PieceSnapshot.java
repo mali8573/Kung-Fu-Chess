@@ -11,14 +11,17 @@ public final class PieceSnapshot {
     public final double col;
     public final PieceVisualState state;
     public final long stateElapsedMillis;
+    /** 1.0 = cooldown just started, 0.0 = expired (can act again); 0.0 when not resting. */
+    public final double restRemainingFraction;
 
     public PieceSnapshot(String id, String pieceCode, double row, double col,
-                          PieceVisualState state, long stateElapsedMillis) {
+                          PieceVisualState state, long stateElapsedMillis, double restRemainingFraction) {
         this.id = id;
         this.pieceCode = pieceCode;
         this.row = row;
         this.col = col;
         this.state = state;
         this.stateElapsedMillis = stateElapsedMillis;
+        this.restRemainingFraction = restRemainingFraction;
     }
 }
