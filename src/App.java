@@ -8,6 +8,16 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
+import controller.GameController;
+import engine.GameEngine;
+import engine.GameSnapshot;
+import engine.MoveLogEntry;
+import view.BoardRenderer;
+import view.BoardRowLayout;
+import view.FireworksEffect;
+import view.MoveLogPanel;
+import view.SoundPlayer;
+
 /** Graphical entry point. Main.java stays the text-command harness; this is the GUI one. */
 public class App {
 

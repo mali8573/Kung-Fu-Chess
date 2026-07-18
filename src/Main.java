@@ -1,5 +1,13 @@
 import java.util.*;
 
+import controller.GameController;
+import engine.GameEngine;
+import engine.MovingPiece;
+import io.BoardParser;
+import io.BoardPrinter;
+import model.GameConstants;
+import view.BoardGeometry;
+
 public class Main {
     public static void main(String[] args) {
         Scanner sc = new Scanner(System.in);

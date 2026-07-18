@@ -1,5 +1,10 @@
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
+import model.GameConstants;
+import controller.GameController;
+import engine.GameEngine;
+import engine.GameSnapshot;
+import view.BoardGeometry;
 
 public class GameControllerTest {
 

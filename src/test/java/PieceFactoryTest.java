@@ -1,5 +1,7 @@
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
+import model.GameConstants;
+import rules.PieceFactory;
 
 public class PieceFactoryTest {
     private String[][] emptyBoard(int n){

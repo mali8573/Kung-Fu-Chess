@@ -1,5 +1,6 @@
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
+import engine.MovingPiece;
 
 public class MovingPieceTest {
     @Test

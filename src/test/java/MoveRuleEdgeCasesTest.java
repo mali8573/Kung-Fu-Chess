@@ -1,5 +1,9 @@
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
+import model.GameConstants;
+import rules.PieceFactory;
+import rules.pieces.KingMoveStrategy;
+import rules.pieces.PawnMoveStrategy;
 
 public class MoveRuleEdgeCasesTest {
     private String[][] emptyBoard(int n) {

@@ -1,5 +1,11 @@
 import org.junit.jupiter.api.Test;
 import java.util.List;
+import model.GameConstants;
+import engine.GameEngine;
+import engine.GameSnapshot;
+import engine.MovingPiece;
+import engine.PieceSnapshot;
+import view.PieceVisualState;
 import static org.junit.jupiter.api.Assertions.*;
 
 public class GameEngineSnapshotTest {

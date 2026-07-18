@@ -1,5 +1,8 @@
 import org.junit.jupiter.api.Test;
 import java.util.Random;
+import model.GameConstants;
+import engine.GameEngine;
+import engine.MovingPiece;
 
 import static org.junit.jupiter.api.Assertions.*;
 

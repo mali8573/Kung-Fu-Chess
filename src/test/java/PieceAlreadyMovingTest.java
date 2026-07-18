@@ -1,5 +1,9 @@
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
+import model.GameConstants;
+import engine.GameEngine;
+import engine.MovingPiece;
+import rules.RuleEngine;
 
 public class PieceAlreadyMovingTest {
     private String[][] emptyBoard(int n){

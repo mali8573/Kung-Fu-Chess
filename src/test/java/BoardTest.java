@@ -1,5 +1,9 @@
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
+import model.Board;
+import model.GameConstants;
+import model.Piece;
+import model.Position;
 
 public class BoardTest {
 

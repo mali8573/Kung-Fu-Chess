@@ -1,5 +1,15 @@
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
+import model.GameConstants;
+import engine.GameEngine;
+import engine.MovingPiece;
+import rules.PieceFactory;
+import rules.pieces.BishopMoveStrategy;
+import rules.pieces.KingMoveStrategy;
+import rules.pieces.KnightMoveStrategy;
+import rules.pieces.PawnMoveStrategy;
+import rules.pieces.QueenMoveStrategy;
+import rules.pieces.RookMoveStrategy;
 
 public class ComprehensiveMoveTests {
     private String[][] emptyBoard(int n) {

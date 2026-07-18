@@ -1,5 +1,10 @@
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
+import model.GameConstants;
+import engine.GameEngine;
+import engine.GameSnapshot;
+import engine.MoveLogEntry;
+import engine.MovingPiece;
 
 public class MoveLogTest {
     private String[][] emptyBoard(int n) {
