@@ -16,6 +16,7 @@ import engine.MoveLogEntry;
 public class MoveLogPanel extends JPanel {
     private final DefaultTableModel model;
     private final JTable table;
+    private final JLabel header;
     private final JLabel scoreLabel;
     private int renderedCount = 0;
     private int lastScore = -1;
@@ -27,7 +28,7 @@ public class MoveLogPanel extends JPanel {
         setLayout(new BorderLayout());
         setBackground(PANEL_BACKGROUND);
 
-        JLabel header = new JLabel(title, SwingConstants.CENTER);
+        header = new JLabel(title, SwingConstants.CENTER);
         header.setOpaque(true);
         header.setBackground(accentColor);
         header.setForeground(Color.WHITE);
@@ -77,6 +78,12 @@ public class MoveLogPanel extends JPanel {
         scroll.getViewport().setBackground(PANEL_BACKGROUND);
         scroll.setPreferredSize(new Dimension(190, 720));
         add(scroll, BorderLayout.CENTER);
+    }
+
+    /** Changes the header text after construction - e.g. "White" -> "White (Alice)" once a
+     *  networked player's username is known. */
+    public void setTitle(String title) {
+        header.setText(title);
     }
 
     /** Empties the table and resets the score line - used when starting a new game. */

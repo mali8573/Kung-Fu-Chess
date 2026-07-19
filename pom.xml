@@ -29,6 +29,24 @@
       <version>${junit.jupiter.version}</version>
       <scope>test</scope>
     </dependency>
+    <!-- SQLite driver backing server.AccountStore (username/password/ELO persistence) -->
+    <dependency>
+      <groupId>org.xerial</groupId>
+      <artifactId>sqlite-jdbc</artifactId>
+      <version>3.45.1.0</version>
+    </dependency>
+    <!-- sqlite-jdbc logs through SLF4J; slf4j-nop is a silent no-op backend so it doesn't
+         need a real logging framework wired in just to satisfy this transitive dependency. -->
+    <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-api</artifactId>
+      <version>1.7.36</version>
+    </dependency>
+    <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-nop</artifactId>
+      <version>1.7.36</version>
+    </dependency>
   </dependencies>
 
   <build>

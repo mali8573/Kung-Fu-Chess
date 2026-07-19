@@ -180,6 +180,8 @@ public class BoardRenderer {
         return frame;
     }
 
+    /** winner is normally "white"/"black"/null (local play), but a caller that knows a real
+     *  player name (networked play) can pass that name instead, e.g. "Alice" -> "ALICE WINS". */
     private void drawGameOverBanner(Img frame, String winner) {
         int w = frame.get().getWidth();
         int h = frame.get().getHeight();
@@ -187,6 +189,7 @@ public class BoardRenderer {
 
         String label = "white".equals(winner) ? "WHITE WINS"
                 : "black".equals(winner) ? "BLACK WINS"
+                : winner != null ? winner.toUpperCase() + " WINS"
                 : "GAME OVER";
         frame.putTextCentered(label, w / 2, h / 2, 2.4f, Color.WHITE);
     }
