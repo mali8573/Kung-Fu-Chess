@@ -1,5 +1,8 @@
 package server;
 
+import bus.GameEndedEvent;
+import bus.MoveLoggedEvent;
+import bus.ScoreChangedEvent;
 import engine.GameEngine;
 import engine.GameSnapshot;
 import model.GameConstants;
@@ -63,7 +66,27 @@ public class Match {
         this.blackName = blackName;
         this.blackElo = blackElo;
         this.reconnectWindowMs = reconnectWindowMs;
+        wireEventForwarding();
         engine.reset(startingPosition());
+    }
+
+    /** Forwards each of the engine's own bus events to both players (and any spectators) as a
+     *  discrete "EVENT ..." wire message, in addition to the regular per-tick STATE broadcast -
+     *  a client reacting live to one of these (a capture sound, the game-over fanfare) hears
+     *  about it the instant it happens rather than only via a periodic snapshot. */
+    private void wireEventForwarding() {
+        engine.getEventBus().subscribe(MoveLoggedEvent.class, ev ->
+                broadcast("EVENT MOVE " + (ev.entry.white ? "white" : "black") + " " + ev.entry.notation));
+        engine.getEventBus().subscribe(ScoreChangedEvent.class, ev ->
+                broadcast("EVENT SCORE " + ev.whiteScore + " " + ev.blackScore));
+        engine.getEventBus().subscribe(GameEndedEvent.class, ev ->
+                broadcast("EVENT ENDED " + ev.winner));
+    }
+
+    private void broadcast(String message) {
+        trySend(whiteConn, message);
+        trySend(blackConn, message);
+        for (WebSocketSession spectator : spectators) trySend(spectator, message);
     }
 
     public WebSocketSession whiteConnection() { return whiteConn; }
@@ -113,6 +136,7 @@ public class Match {
         if (elapsed >= reconnectWindowMs) {
             engine.gameOver = true;
             engine.winner = disconnectedColor.equals("white") ? "black" : "white";
+            engine.getEventBus().publish(new GameEndedEvent(engine.winner));
             return;
         }
         WebSocketSession remaining = disconnectedColor.equals("white") ? blackConn : whiteConn;

@@ -2,6 +2,11 @@ package engine;
 
 import java.util.*;
 
+import bus.EventBus;
+import bus.GameEndedEvent;
+import bus.GameStartedEvent;
+import bus.MoveLoggedEvent;
+import bus.ScoreChangedEvent;
 import model.Board;
 import model.GameConstants;
 import model.Piece;
@@ -19,6 +24,15 @@ public class GameEngine {
     public List<MovingPiece> activeMoves = new ArrayList<>();
 
     private final RealTimeArbiter arbiter = new RealTimeArbiter(this);
+
+    /** Where every game event (a move logged, a score change, game start/end) is actually
+     *  published, right where each one is detected - not reconstructed later by a caller
+     *  polling snapshots and diffing them against the last one it saw. */
+    private final EventBus eventBus = new EventBus();
+
+    public EventBus getEventBus() {
+        return eventBus;
+    }
 
     /**
      * Object-oriented view of the same board data (Position/Piece instead of int/String).
@@ -42,6 +56,7 @@ public class GameEngine {
         moveLog.clear();
         whiteScore = 0;
         blackScore = 0;
+        eventBus.publish(new GameStartedEvent());
     }
 
     /** Cooldown after landing from a normal move: 1 second per square actually traveled
@@ -473,12 +488,16 @@ public class GameEngine {
                     } else {
                         blackScore += pieceValue(defender.kindLetter());
                     }
+                    eventBus.publish(new ScoreChangedEvent(whiteScore, blackScore));
                     String landedPiece = promote(mp.piece, mp.toRow);
                     b.removePiece(from);
                     b.placePieceCode(to, landedPiece);
                     startRest(landedPiece, mp.toRow, mp.toCol, PieceVisualState.LONG_REST,
                         moveRestMs(mp.fromRow, mp.fromCol, mp.toRow, mp.toCol));
-                    moveLog.add(new MoveLogEntry(atSource.isWhite(), notationFor(mp, true, landedPiece), currentTime));
+                    MoveLogEntry entry = new MoveLogEntry(atSource.isWhite(), notationFor(mp, true, landedPiece), currentTime);
+                    moveLog.add(entry);
+                    eventBus.publish(new MoveLoggedEvent(entry));
+                    if (gameOver) eventBus.publish(new GameEndedEvent(winner));
                 }
             } else {
                 // Normal landing
@@ -487,7 +506,9 @@ public class GameEngine {
                 b.placePieceCode(to, landedPiece);
                 startRest(landedPiece, mp.toRow, mp.toCol, PieceVisualState.LONG_REST,
                         moveRestMs(mp.fromRow, mp.fromCol, mp.toRow, mp.toCol));
-                moveLog.add(new MoveLogEntry(atSource.isWhite(), notationFor(mp, false, landedPiece), currentTime));
+                MoveLogEntry entry = new MoveLogEntry(atSource.isWhite(), notationFor(mp, false, landedPiece), currentTime);
+                moveLog.add(entry);
+                eventBus.publish(new MoveLoggedEvent(entry));
             }
 
             processed.add(mp);

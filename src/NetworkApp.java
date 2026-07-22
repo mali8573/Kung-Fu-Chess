@@ -244,6 +244,9 @@ public class NetworkApp {
         });
         long[] gameOverAt = {0};
         long[] nextBurstAt = {0};
+        // Set once this window has heard (or, on hydration, already knows) that the game
+        // ended, so a server-forwarded "EVENT ENDED" is never re-published a second time.
+        boolean[] gameOverAnnounced = {false};
         bus.subscribe(GameEndedEvent.class, ev -> {
             SoundPlayer.playVictoryFanfare();
             gameOverAt[0] = System.currentTimeMillis();
@@ -314,6 +317,22 @@ public class NetworkApp {
                 } else if (message.startsWith("REJECTED")) {
                     statusMessage.set(friendlyRejection(message));
                     System.out.println(message);
+                } else if (message.startsWith("EVENT MOVE ")) {
+                    String[] eventParts = message.substring("EVENT MOVE ".length()).trim().split("\\s+", 2);
+                    if (eventParts.length == 2) {
+                        boolean white = "white".equals(eventParts[0]);
+                        bus.publish(new MoveLoggedEvent(new MoveLogEntry(white, eventParts[1], 0)));
+                    }
+                } else if (message.startsWith("EVENT SCORE ")) {
+                    String[] eventParts = message.substring("EVENT SCORE ".length()).trim().split("\\s+");
+                    if (eventParts.length == 2) {
+                        bus.publish(new ScoreChangedEvent(Integer.parseInt(eventParts[0]), Integer.parseInt(eventParts[1])));
+                    }
+                } else if (message.startsWith("EVENT ENDED ")) {
+                    if (!gameOverAnnounced[0]) {
+                        gameOverAnnounced[0] = true;
+                        bus.publish(new GameEndedEvent(message.substring("EVENT ENDED ".length()).trim()));
+                    }
                 } else if (message.startsWith("ROOM_CREATED ")) {
                     String code = message.substring("ROOM_CREATED ".length()).trim();
                     roomCodeRef.set(code);
@@ -432,10 +451,11 @@ public class NetworkApp {
 
         Random random = new Random();
         final int[] loggedMoveCount = {0};
-        final int[] prevWhiteScore = {-1};
-        final int[] prevBlackScore = {-1};
         final long fireworksSpawnWindowMs = 4000;
-        final boolean[] gameOverAnnounced = {false};
+        // Set on the very first snapshot this window ever sees, so a match already under way
+        // (a spectator tuning in, or a reconnect) has its score/move-log/game-over display
+        // caught up silently instead of replaying every historical MoveLoggedEvent/fanfare.
+        final boolean[] hydrated = {false};
         final String[] bannerShownFor = {null};
 
         Timer uiLoop = new Timer(16, e -> {
@@ -477,12 +497,18 @@ public class NetworkApp {
             }
 
             if (snap != null) {
-                if (snap.gameOver && !gameOverAnnounced[0]) {
-                    gameOverAnnounced[0] = true;
-                    bus.publish(new GameEndedEvent(snap.winner));
-                }
-                if (!snap.gameOver) {
-                    gameOverAnnounced[0] = false;
+                // Live score/move-log/game-over updates arrive as server-forwarded "EVENT ..."
+                // messages (published at the true moment they happen, on the authoritative
+                // GameEngine's own bus) - this block only ever runs once, to silently catch
+                // this window's display up to whatever already happened before it connected.
+                if (!hydrated[0]) {
+                    hydrated[0] = true;
+                    gameOverAnnounced[0] = snap.gameOver;
+                    loggedMoveCount[0] = snap.moveLog.size();
+                    whiteLog.setScore(snap.whiteScore);
+                    blackLog.setScore(snap.blackScore);
+                    whiteLog.sync(splitByColor(snap.moveLog, true));
+                    blackLog.sync(splitByColor(snap.moveLog, false));
                 }
 
                 if (snap.gameOver && now - gameOverAt[0] < fireworksSpawnWindowMs && now >= nextBurstAt[0]) {
@@ -492,30 +518,24 @@ public class NetworkApp {
                     nextBurstAt[0] = now + 300 + random.nextInt(400);
                 }
 
-                if (snap.whiteScore != prevWhiteScore[0] || snap.blackScore != prevBlackScore[0]) {
-                    prevWhiteScore[0] = snap.whiteScore;
-                    prevBlackScore[0] = snap.blackScore;
-                    bus.publish(new ScoreChangedEvent(snap.whiteScore, snap.blackScore));
-                }
-
                 if (snap.moveLog.size() > loggedMoveCount[0]) {
-                    for (int i = loggedMoveCount[0]; i < snap.moveLog.size(); i++) {
-                        bus.publish(new MoveLoggedEvent(snap.moveLog.get(i)));
-                    }
                     loggedMoveCount[0] = snap.moveLog.size();
-
-                    List<MoveLogEntry> whiteMoves = new ArrayList<>();
-                    List<MoveLogEntry> blackMoves = new ArrayList<>();
-                    for (MoveLogEntry entry : snap.moveLog) {
-                        (entry.white ? whiteMoves : blackMoves).add(entry);
-                    }
-                    bus.publish(new MoveLogUpdatedEvent(whiteMoves, blackMoves));
+                    bus.publish(new MoveLogUpdatedEvent(splitByColor(snap.moveLog, true), splitByColor(snap.moveLog, false)));
                 }
             }
 
             panel.repaint();
         });
         uiLoop.start();
+    }
+
+    /** Every move belonging to one side, in order - the move-log panel only ever wants its own side. */
+    private static List<MoveLogEntry> splitByColor(List<MoveLogEntry> moveLog, boolean white) {
+        List<MoveLogEntry> result = new ArrayList<>();
+        for (MoveLogEntry entry : moveLog) {
+            if (entry.white == white) result.add(entry);
+        }
+        return result;
     }
 
     /** " (Alice, 1200)" for a move-log header, or "" if nobody's logged in for that side yet. */

@@ -29,6 +29,21 @@ public class App {
         SwingUtilities.invokeLater(App::createAndShow);
     }
 
+    /** Turns a GameEngine.RequestResult's machine-readable reason into something readable
+     *  for the status line under the title - mirrors NetworkApp's friendlyRejection, minus
+     *  the two rejection reasons that only the network server can ever produce. */
+    private static String friendlyRejection(String reason) {
+        switch (reason) {
+            case "game_over": return "The game is already over";
+            case "empty_source": return "There's no piece there";
+            case "motion_in_progress": return "That piece is already moving";
+            case "resting": return "That piece is resting - not yet";
+            case "friendly_destination": return "You already have a piece there";
+            case "illegal_piece_move": return "That piece can't move there";
+            default: return "Move rejected";
+        }
+    }
+
     private static String[][] startingPosition() {
         return new String[][] {
                 {"bR", "bN", "bB", "bQ", "bK", "bB", "bN", "bR"},
@@ -76,7 +91,19 @@ public class App {
         title.setBackground(Color.BLACK);
         title.setForeground(BoardRenderer.SELECTION_COLOR);
         title.setFont(new Font(Font.SERIF, Font.BOLD, 48));
-        title.setBorder(BorderFactory.createEmptyBorder(20, 0, 32, 0));
+        title.setBorder(BorderFactory.createEmptyBorder(20, 0, 8, 0));
+
+        JLabel status = new JLabel(" ", SwingConstants.CENTER);
+        status.setOpaque(true);
+        status.setBackground(Color.BLACK);
+        status.setForeground(Color.LIGHT_GRAY);
+        status.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 16));
+        status.setBorder(BorderFactory.createEmptyBorder(0, 0, 24, 0));
+
+        JPanel header = new JPanel(new BorderLayout());
+        header.setBackground(Color.BLACK);
+        header.add(title, BorderLayout.NORTH);
+        header.add(status, BorderLayout.SOUTH);
 
         // GameBoardView already wraps [blackLog | panel | whiteLog] in a BoardRowLayout - see
         // that class for why a real LayoutManager (invoked by Swing's own validate machinery)
@@ -85,7 +112,7 @@ public class App {
 
         JPanel root = new JPanel(new BorderLayout());
         root.setBackground(Color.BLACK);
-        root.add(title, BorderLayout.NORTH);
+        root.add(header, BorderLayout.NORTH);
         root.add(boardRow, BorderLayout.CENTER);
 
         JFrame frame = new JFrame("Kung Fu Chess");
@@ -122,7 +149,12 @@ public class App {
                         System.out.println(result.accepted
                                 ? "jump accepted"
                                 : "jump REJECTED - reason: " + result.reason);
-                        if (result.accepted) SoundPlayer.playJump();
+                        if (result.accepted) {
+                            SoundPlayer.playJump();
+                            status.setText(" ");
+                        } else {
+                            status.setText(friendlyRejection(result.reason));
+                        }
                     }
                     return;
                 }
@@ -134,13 +166,20 @@ public class App {
                 if (!hadSelectionBefore && hasSelectionNow) {
                     System.out.println("selected " + engine.board[controller.getSelectedRow()][controller.getSelectedCol()]
                             + " at row=" + controller.getSelectedRow() + " col=" + controller.getSelectedCol());
+                    status.setText(" ");
                 } else if (result != null) {
                     System.out.println(result.accepted
                             ? "move accepted"
                             : "move REJECTED - reason: " + result.reason);
-                    if (result.accepted) SoundPlayer.playMove();
+                    if (result.accepted) {
+                        SoundPlayer.playMove();
+                        status.setText(" ");
+                    } else {
+                        status.setText(friendlyRejection(result.reason));
+                    }
                 } else if (hadSelectionBefore && !hasSelectionNow) {
                     System.out.println("selection cancelled (clicked outside the board)");
+                    status.setText(" ");
                 } else {
                     System.out.println("click ignored (empty cell or outside board)");
                 }
@@ -163,6 +202,7 @@ public class App {
             fireworks.clear();
             gameOverAnnounced[0] = false;
             playAgainButton.setVisible(false);
+            status.setText(" ");
             panel.repaint();
         };
         playAgainButton.addActionListener(e -> startNewGame.run());
