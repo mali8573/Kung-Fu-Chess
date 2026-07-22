@@ -1,8 +1,11 @@
 package server;
 
-import net.WebSocketConnection;
-import net.WebSocketFrame;
-import net.WebSocketServer;
+import org.springframework.boot.WebApplicationType;
+import org.springframework.boot.builder.SpringApplicationBuilder;
+import org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext;
+import org.springframework.context.ConfigurableApplicationContext;
+import org.springframework.web.socket.TextMessage;
+import org.springframework.web.socket.WebSocketSession;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -61,10 +64,10 @@ public class GameServer {
     private static final int ROOM_CODE_LENGTH = 4;
 
     private final AccountStore accountStore;
-    private final Map<WebSocketConnection, String> usernameOf = new HashMap<>();
-    private final Map<WebSocketConnection, Integer> eloOf = new HashMap<>();
+    private final Map<WebSocketSession, String> usernameOf = new HashMap<>();
+    private final Map<WebSocketSession, Integer> eloOf = new HashMap<>();
     private final List<WaitingPlayer> queue = new ArrayList<>();
-    private final Map<WebSocketConnection, Match> matchOf = new HashMap<>();
+    private final Map<WebSocketSession, Match> matchOf = new HashMap<>();
     /** A username whose connection just dropped mid-match, and the Match it can still
      *  rejoin if it logs back in before the reconnect window expires. */
     private final Map<String, Match> pendingReconnect = new HashMap<>();
@@ -73,7 +76,7 @@ public class GameServer {
     /** A room code whose match has already started - kept around purely so a spectator can
      *  still find it by code after the two players are already seated. */
     private final Map<String, Match> roomToMatch = new HashMap<>();
-    private final Map<WebSocketConnection, Match> spectatorOf = new HashMap<>();
+    private final Map<WebSocketSession, Match> spectatorOf = new HashMap<>();
     private final Random random = new Random();
     private final Object lock = new Object();
     private long matchmakingTimeoutMs = DEFAULT_MATCHMAKING_TIMEOUT_MS;
@@ -106,38 +109,25 @@ public class GameServer {
     }
 
     /** Starts listening and returns the actual bound port (useful when port==0, auto-assign). */
-    public int start(int port) throws IOException {
-        WebSocketServer server = new WebSocketServer(port);
-        server.start(this::onConnect);
-        int boundPort = server.getLocalPort();
+    public int start(int port) {
+        GameServerContextHolder.set(this);
+        ConfigurableApplicationContext context;
+        try {
+            context = new SpringApplicationBuilder(GameWebSocketBootstrap.class)
+                    .web(WebApplicationType.SERVLET)
+                    .properties("server.port=" + port, "spring.main.banner-mode=off")
+                    .run();
+        } finally {
+            GameServerContextHolder.clear();
+        }
+        int boundPort = ((ServletWebServerApplicationContext) context).getWebServer().getPort();
         System.out.println("GameServer listening on port " + boundPort);
 
         startMatchmakingLoop();
         return boundPort;
     }
 
-    private void onConnect(WebSocketConnection connection) {
-        Thread listenerThread = new Thread(() -> listenLoop(connection));
-        listenerThread.setDaemon(true);
-        listenerThread.start();
-    }
-
-    private void listenLoop(WebSocketConnection connection) {
-        try {
-            while (true) {
-                String message = connection.readText();
-                handleMessage(connection, message);
-            }
-        } catch (WebSocketFrame.ConnectionClosedException e) {
-            System.out.println("Player disconnected: " + e.getMessage());
-        } catch (IOException e) {
-            System.out.println("Connection error: " + e.getMessage());
-        } finally {
-            removeConnection(connection);
-        }
-    }
-
-    private void handleMessage(WebSocketConnection connection, String message) {
+    void handleMessage(WebSocketSession connection, String message) {
         String[] parts = message.trim().split("\\s+");
 
         if (parts.length == 3 && parts[0].equalsIgnoreCase("LOGIN")) {
@@ -168,7 +158,7 @@ public class GameServer {
 
     /** Sets aside a room code for this (already logged-in) player to share with a friend;
      *  the room turns into a real Match once someone else calls handleJoinRoom with the code. */
-    private void handleCreateRoom(WebSocketConnection connection) {
+    private void handleCreateRoom(WebSocketSession connection) {
         String code;
         synchronized (lock) {
             String username = usernameOf.get(connection);
@@ -196,7 +186,7 @@ public class GameServer {
      *  code afterwards - the room's match already under way - becomes a read-only spectator
      *  instead. Both cases are the same JOIN_ROOM command; the caller never has to say which
      *  one they mean, exactly like the spec's single "Join" button. */
-    private void handleJoinRoom(WebSocketConnection connection, String code) {
+    private void handleJoinRoom(WebSocketSession connection, String code) {
         Match newMatch = null;
         WaitingPlayer host = null;
         WaitingPlayer joiner = null;
@@ -240,7 +230,7 @@ public class GameServer {
         }
     }
 
-    private void handleLogin(WebSocketConnection connection, String username, String password) {
+    private void handleLogin(WebSocketSession connection, String username, String password) {
         AccountStore.LoginResult result = accountStore.login(username, password);
         if (!result.success) {
             trySend(connection, "LOGIN_FAILED " + result.reason);
@@ -278,7 +268,7 @@ public class GameServer {
         trySend(connection, "LOGIN_OK " + result.elo);
     }
 
-    private void handlePlay(WebSocketConnection connection) {
+    private void handlePlay(WebSocketSession connection) {
         synchronized (lock) {
             String username = usernameOf.get(connection);
             if (username == null) return; // must log in first
@@ -307,7 +297,7 @@ public class GameServer {
     /** One pairing (at most) per scan; a queue with several compatible players sorts itself
      *  out over a couple of scans instead of needing trickier same-pass index bookkeeping. */
     private void tryPairWaitingPlayers() {
-        List<WebSocketConnection> timedOut = new ArrayList<>();
+        List<WebSocketSession> timedOut = new ArrayList<>();
         Match newMatch = null;
 
         synchronized (lock) {
@@ -342,7 +332,7 @@ public class GameServer {
             }
         }
 
-        for (WebSocketConnection connection : timedOut) {
+        for (WebSocketSession connection : timedOut) {
             trySend(connection, "NO_MATCH");
         }
         if (newMatch != null) {
@@ -352,7 +342,7 @@ public class GameServer {
         }
     }
 
-    private void removeConnection(WebSocketConnection connection) {
+    void removeConnection(WebSocketSession connection) {
         Match match;
         Match spectating;
         synchronized (lock) {
@@ -366,7 +356,9 @@ public class GameServer {
                 pendingReconnect.put(username, match);
             }
         }
-        connection.close();
+        try {
+            connection.close();
+        } catch (IOException ignored) { }
         if (spectating != null) {
             spectating.removeSpectator(connection);
         }
@@ -375,19 +367,22 @@ public class GameServer {
         }
     }
 
-    private void trySend(WebSocketConnection connection, String text) {
+    /** Best-effort send: a gone/closed session must never crash the caller's thread (the
+     *  matchmaking loop, here). See Match.trySend for why both IOException and
+     *  IllegalStateException/other runtime exceptions need to be swallowed the same way. */
+    private void trySend(WebSocketSession connection, String text) {
         try {
-            connection.sendText(text);
-        } catch (IOException ignored) { }
+            connection.sendMessage(new TextMessage(text));
+        } catch (IOException | RuntimeException ignored) { }
     }
 
     private static final class WaitingPlayer {
-        final WebSocketConnection connection;
+        final WebSocketSession connection;
         final String username;
         final int elo;
         final long joinedAt = System.currentTimeMillis();
 
-        WaitingPlayer(WebSocketConnection connection, String username, int elo) {
+        WaitingPlayer(WebSocketSession connection, String username, int elo) {
             this.connection = connection;
             this.username = username;
             this.elo = elo;

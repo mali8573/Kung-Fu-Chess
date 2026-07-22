@@ -10,6 +10,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 
 import bus.EventBus;
 import bus.GameEndedEvent;
@@ -26,8 +27,8 @@ import model.Position;
 import net.SnapshotCodec;
 import rules.RuleEngine;
 import view.BoardRenderer;
-import view.BoardRowLayout;
 import view.FireworksEffect;
+import view.GameBoardView;
 import view.MoveLogPanel;
 import view.SoundPlayer;
 
@@ -82,32 +83,26 @@ public class NetworkApp {
         // plain matchmade (Play) game, which has no room code to show anywhere.
         AtomicReference<String> roomCodeRef = new AtomicReference<>();
 
-        JPanel panel = new JPanel() {
-            @Override
-            protected void paintComponent(Graphics g) {
-                super.paintComponent(g);
-                GameSnapshot server = latestSnapshot.get();
-                if (server == null) return; // haven't received a STATE broadcast yet
-                List<Position> legalMoves = (selection.row == -1)
-                        ? Collections.emptyList()
-                        : legalDestinationsFrom(server, selection.row, selection.col);
-                String winnerName = "white".equals(server.winner) ? nameOrColor(whiteNameRef.get(), "white")
-                        : "black".equals(server.winner) ? nameOrColor(blackNameRef.get(), "black")
-                        : server.winner;
-                // Safe to show the yellow border again - selection is only ever set on your
-                // own piece (see isOwnPiece), so it can never land on an opponent's piece.
-                GameSnapshot toRender = new GameSnapshot(server.boardRows, server.boardCols, server.pieces,
-                        selection.row, selection.col, server.gameOver, winnerName,
-                        legalMoves, server.moveLog, server.whiteScore, server.blackScore);
-                renderer.paint((Graphics2D) g, toRender, getWidth(), getHeight());
-                fireworks.render((Graphics2D) g);
-            }
+        Supplier<GameSnapshot> snapshotSupplier = () -> {
+            GameSnapshot server = latestSnapshot.get();
+            if (server == null) return null; // haven't received a STATE broadcast yet
+            List<Position> legalMoves = (selection.row == -1)
+                    ? Collections.emptyList()
+                    : legalDestinationsFrom(server, selection.row, selection.col);
+            String winnerName = "white".equals(server.winner) ? nameOrColor(whiteNameRef.get(), "white")
+                    : "black".equals(server.winner) ? nameOrColor(blackNameRef.get(), "black")
+                    : server.winner;
+            // Safe to show the yellow border again - selection is only ever set on your
+            // own piece (see isOwnPiece), so it can never land on an opponent's piece.
+            return new GameSnapshot(server.boardRows, server.boardCols, server.pieces,
+                    selection.row, selection.col, server.gameOver, winnerName,
+                    legalMoves, server.moveLog, server.whiteScore, server.blackScore);
         };
-        panel.setPreferredSize(new Dimension(720, 720));
-        panel.setBackground(Color.BLACK);
+        GameBoardView boardView = new GameBoardView(renderer, fireworks, snapshotSupplier, 220);
+        JPanel panel = boardView.getBoardPanel();
 
-        MoveLogPanel blackLog = new MoveLogPanel("Black", new Color(40, 40, 40));
-        MoveLogPanel whiteLog = new MoveLogPanel("White", new Color(90, 90, 90));
+        MoveLogPanel blackLog = boardView.getBlackLog();
+        MoveLogPanel whiteLog = boardView.getWhiteLog();
 
         JLabel title = new JLabel("Kung Fu Chess", SwingConstants.CENTER);
         title.setOpaque(true);
@@ -139,12 +134,7 @@ public class NetworkApp {
         roomTag.setFont(new Font(Font.MONOSPACED, Font.BOLD, 14));
         roomTag.setBorder(BorderFactory.createEmptyBorder(6, 0, 0, 0));
 
-        final int preferredLogWidth = 220;
-        JPanel boardRow = new JPanel(new BoardRowLayout(blackLog, panel, whiteLog, preferredLogWidth));
-        boardRow.setBackground(Color.BLACK);
-        boardRow.add(blackLog);
-        boardRow.add(panel);
-        boardRow.add(whiteLog);
+        JPanel boardRow = boardView.getRow();
 
         JPanel titleAndBanner = new JPanel(new BorderLayout());
         titleAndBanner.setBackground(Color.BLACK);

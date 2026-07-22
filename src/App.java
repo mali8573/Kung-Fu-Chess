@@ -13,8 +13,8 @@ import engine.GameEngine;
 import engine.GameSnapshot;
 import engine.MoveLogEntry;
 import view.BoardRenderer;
-import view.BoardRowLayout;
 import view.FireworksEffect;
+import view.GameBoardView;
 import view.MoveLogPanel;
 import view.SoundPlayer;
 
@@ -50,18 +50,8 @@ public class App {
         GameController controller = new GameController(engine, renderer.getGeometry());
         FireworksEffect fireworks = new FireworksEffect();
 
-        JPanel panel = new JPanel() {
-            @Override
-            protected void paintComponent(Graphics g) {
-                super.paintComponent(g);
-                renderer.paint((Graphics2D) g, controller.snapshot(), getWidth(), getHeight());
-                fireworks.render((Graphics2D) g);
-            }
-        };
-        panel.setPreferredSize(new Dimension(720, 720));
-        // Black to match the moves-log panels flanking it, so there is no visible seam
-        // between them regardless of how the window is resized.
-        panel.setBackground(Color.BLACK);
+        GameBoardView boardView = new GameBoardView(renderer, fireworks, controller::snapshot, 220);
+        JPanel panel = boardView.getBoardPanel();
         panel.setLayout(null); // only child is the absolutely-positioned "Play Again" button
 
         JButton playAgainButton = new JButton("Play Again");
@@ -78,8 +68,8 @@ public class App {
             playAgainButton.setBounds((panel.getWidth() - w) / 2, panel.getHeight() / 2 + 50, w, h);
         };
 
-        MoveLogPanel blackLog = new MoveLogPanel("Black", new Color(40, 40, 40));
-        MoveLogPanel whiteLog = new MoveLogPanel("White", new Color(90, 90, 90));
+        MoveLogPanel blackLog = boardView.getBlackLog();
+        MoveLogPanel whiteLog = boardView.getWhiteLog();
 
         JLabel title = new JLabel("Kung Fu Chess", SwingConstants.CENTER);
         title.setOpaque(true);
@@ -88,17 +78,10 @@ public class App {
         title.setFont(new Font(Font.SERIF, Font.BOLD, 48));
         title.setBorder(BorderFactory.createEmptyBorder(20, 0, 32, 0));
 
-        // A dedicated LayoutManager (BoardRowLayout) instead of a componentResized listener
-        // that reactively mutates preferredSize - the reactive approach could compute against
-        // a stale intermediate size mid-resize (e.g. during a maximize animation) and never
-        // get corrected, leaving the board collapsed. A real LayoutManager is invoked by
-        // Swing's own validate machinery, always against the final settled size.
-        final int preferredLogWidth = 220;
-        JPanel boardRow = new JPanel(new BoardRowLayout(blackLog, panel, whiteLog, preferredLogWidth));
-        boardRow.setBackground(Color.BLACK);
-        boardRow.add(blackLog);
-        boardRow.add(panel);
-        boardRow.add(whiteLog);
+        // GameBoardView already wraps [blackLog | panel | whiteLog] in a BoardRowLayout - see
+        // that class for why a real LayoutManager (invoked by Swing's own validate machinery)
+        // is used instead of a componentResized listener reactively mutating preferredSize.
+        JPanel boardRow = boardView.getRow();
 
         JPanel root = new JPanel(new BorderLayout());
         root.setBackground(Color.BLACK);

@@ -12,7 +12,23 @@
     <maven.compiler.target>8</maven.compiler.target>
     <maven.compiler.encoding>UTF-8</maven.compiler.encoding>
     <junit.jupiter.version>5.9.2</junit.jupiter.version>
+    <!-- Last Spring Boot line supporting Java 8, matching maven.compiler.source/target above. -->
+    <spring-boot.version>2.7.18</spring-boot.version>
   </properties>
+
+  <!-- Imports Spring Boot's version management without inheriting spring-boot-starter-parent
+       as <parent>, so the custom sourceDirectory/compiler-plugin/jacoco config below is untouched. -->
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-dependencies</artifactId>
+        <version>${spring-boot.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
 
   <dependencies>
     <!-- JUnit 5 API -->
@@ -35,17 +51,16 @@
       <artifactId>sqlite-jdbc</artifactId>
       <version>3.45.1.0</version>
     </dependency>
-    <!-- sqlite-jdbc logs through SLF4J; slf4j-nop is a silent no-op backend so it doesn't
-         need a real logging framework wired in just to satisfy this transitive dependency. -->
+    <!-- Embedded Tomcat + Spring's WebSocketHandler/WebSocketSession abstraction, backing
+         server.GameServer's wire protocol. spring-boot-starter-web is required alongside the
+         websocket starter to guarantee a servlet-based embedded web server (Tomcat). -->
     <dependency>
-      <groupId>org.slf4j</groupId>
-      <artifactId>slf4j-api</artifactId>
-      <version>1.7.36</version>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-web</artifactId>
     </dependency>
     <dependency>
-      <groupId>org.slf4j</groupId>
-      <artifactId>slf4j-nop</artifactId>
-      <version>1.7.36</version>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-websocket</artifactId>
     </dependency>
   </dependencies>
 
@@ -97,6 +112,18 @@
             </goals>
           </execution>
         </executions>
+      </plugin>
+
+      <!-- Lets `mvn exec:java` run either entry point without hand-building a classpath:
+           mvn exec:java                                        (starts GameServer, default port 8765)
+           mvn exec:java -Dexec.mainClass=NetworkApp -Dexec.args="localhost 8765"  (run twice, once per player) -->
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>exec-maven-plugin</artifactId>
+        <version>3.1.0</version>
+        <configuration>
+          <mainClass>server.GameServer</mainClass>
+        </configuration>
       </plugin>
     </plugins>
   </build>

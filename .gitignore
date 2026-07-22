@@ -6,3 +6,7 @@ dist/
 
 # Local player accounts database (created at runtime by GameServer, not shared/committed)
 accounts.db
+
+# Console output captured while running the server locally
+run-server-out.log
+run-server-err.log

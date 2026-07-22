@@ -1,4 +1,5 @@
 @echo off
+chcp 65001 >nul
 setlocal EnableDelayedExpansion
 set JAVA_HOME=C:\Program Files\Android\jdk\jdk-8.0.302.8-hotspot\jdk8u302-b08
 set PATH=%JAVA_HOME%\bin;%PATH%
@@ -9,23 +10,27 @@ if exist target\test-classes rmdir /s /q target\test-classes
 mkdir target\classes
 mkdir target\test-classes
 
-set SRC_FILES=
+if exist target\sources.txt del target\sources.txt
 for /r src %%f in (*.java) do (
   echo %%f | findstr /i /c:"\src\test\" >nul
   if errorlevel 1 (
-    set SRC_FILES=!SRC_FILES! "%%f"
+    set "srcpath=%%f"
+    set "srcpath=!srcpath:\=/!"
+    echo "!srcpath!">>target\sources.txt
   )
 )
 
-javac -cp "lib/*" -d target/classes %SRC_FILES%
+javac -cp "lib/*" -d target/classes @target\sources.txt
 if errorlevel 1 exit /b %errorlevel%
 
-set TEST_FILES=
+if exist target\test-sources.txt del target\test-sources.txt
 for /r src\test\java %%f in (*.java) do (
-  set TEST_FILES=!TEST_FILES! "%%f"
+  set "srcpath=%%f"
+  set "srcpath=!srcpath:\=/!"
+  echo "!srcpath!">>target\test-sources.txt
 )
 
-javac -cp "target/classes;lib/*" -d target/test-classes %TEST_FILES%
+javac -cp "target/classes;lib/*" -d target/test-classes @target\test-sources.txt
 if errorlevel 1 exit /b %errorlevel%
 
 java -cp "target/classes;target/test-classes;lib/*" org.junit.platform.console.ConsoleLauncher --scan-class-path
